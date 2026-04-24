@@ -1,0 +1,72 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Pincode {
+  id                  String            @id @default(cuid())
+  pincode             String            @unique
+  area                String
+  district            String
+  lat                 Float
+  lng                 Float
+  population          Int
+  evAdoptionIndex     Float
+  peakDemandMW        Float
+  availableCapacityMW Float
+  existingChargers    ChargingStation[] @relation("ExistingChargers")
+  proposals           ChargerProposal[] @relation("ProposalPincode")
+}
+
+model ChargingStation {
+  id               String   @id @default(cuid())
+  pincodeId        String
+  name             String
+  operator         String
+  chargerTypes     String
+  portCount        Int
+  lat              Float
+  lng              Float
+  category         String
+  dailyUtilization Float
+  dailyEnergyKwh   Float
+  installedAt      DateTime @default(now())
+  pincode          Pincode  @relation("ExistingChargers", fields: [pincodeId], references: [id], onDelete: Cascade)
+}
+
+model DemandHotspot {
+  id          String  @id @default(cuid())
+  lat         Float
+  lng         Float
+  demandScore Float
+  source      String
+  notes       String?
+}
+
+model ChargerProposal {
+  id                          String   @id @default(cuid())
+  pincodeId                   String
+  proposedLat                 Float
+  proposedLng                 Float
+  category                    String
+  recommendedTypes            String
+  recommendedPorts            Int
+  siteScore                   Float
+  demandScore                 Float
+  capacityScore               Float
+  accessibilityScore          Float
+  competitionScore            Float
+  feederImpactPct             Float
+  feederCode                  String?
+  estimatedDailyKwh           Float
+  estimatedRevenueInrPerMonth Float
+  paybackMonths               Float
+  rationale                   String
+  status                      String   @default("PROPOSED")
+  createdAt                   DateTime @default(now())
+  pincode                     Pincode  @relation("ProposalPincode", fields: [pincodeId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,60 @@
+---
+title: Theme 9 — ChargeSense AI Architecture
+config:
+  theme: base
+  themeVariables:
+    primaryColor: '#65a30d'
+    primaryTextColor: '#fff'
+    primaryBorderColor: '#3f6212'
+    lineColor: '#64748b'
+    fontFamily: 'Inter, system-ui, sans-serif'
+---
+flowchart TB
+    subgraph Data["INPUT DATA"]
+      PINCODES["Pincode Master<br/>(30 Bengaluru pincodes · population<br/>· EV adoption · peak demand · headroom)"]
+      STATIONS["Existing Stations<br/>(40 chargers · operator · utilization)"]
+      HOTSPOTS["Demand Hotspots<br/>(60 points · mobility · parking<br/>· EV registrations)"]
+    end
+    subgraph Candidates["CANDIDATE GENERATION"]
+      CENTROID["Pincode Centroid"]
+      HSADJ["Hotspot-Adjacent Points<br/>(within 3 km)"]
+      CATEGORIZE["Location Categorizer<br/>(IT park · mall · highway<br/>· residential · commercial)"]
+    end
+    subgraph Scoring["CANDIDATE SCORING (per site)"]
+      DEMAND["Demand Score<br/>(hotspot density + adoption)"]
+      CAP["Capacity Score<br/>(feeder headroom — load)"]
+      ACCESS["Accessibility Score<br/>(distance to centroid)"]
+      COMPETE["Competition Score<br/>(nearby chargers penalty)"]
+      COMPOSITE["Composite Score<br/>(0.35 + 0.25 + 0.20 + 0.20)"]
+    end
+    subgraph Optimize["CONSTRAINED OPTIMIZER"]
+      GREEDY["Greedy Selection<br/>(top-k by composite)"]
+      BUDGET["Budget Constraint"]
+      PAY["Payback Window"]
+      SPATIAL["Spatial Constraint<br/>(min 500 m via Turf)"]
+      FEEDER["Feeder Cumulative Cap<br/>(≤ 30% per feeder)"]
+    end
+    subgraph Output["PLANNING OUTPUT"]
+      PROPOSALS["Ranked Proposals<br/>(rationale · ROI · feeder code)"]
+      MAP["Leaflet Map<br/>(multi-layer toggles)"]
+      WORKFLOW["Approval Workflow<br/>(propose → shortlist → approve → deploy)"]
+    end
+    PINCODES --> CENTROID & CATEGORIZE
+    HOTSPOTS --> HSADJ
+    CENTROID & HSADJ --> DEMAND & CAP & ACCESS & COMPETE
+    STATIONS --> COMPETE
+    DEMAND & CAP & ACCESS & COMPETE --> COMPOSITE
+    COMPOSITE --> GREEDY --> BUDGET & PAY & SPATIAL & FEEDER
+    BUDGET & PAY & SPATIAL & FEEDER --> PROPOSALS
+    PROPOSALS --> MAP & WORKFLOW
+    CATEGORIZE -.->|"charger mix"| COMPOSITE
+    classDef data fill:#ecfccb,stroke:#4d7c0f,color:#1a2e05
+    classDef gen fill:#a3e635,stroke:#4d7c0f,color:#1a2e05
+    classDef score fill:#84cc16,stroke:#4d7c0f,color:#fff
+    classDef opt fill:#65a30d,stroke:#3f6212,color:#fff
+    classDef out fill:#f7fee7,stroke:#4d7c0f,color:#1a2e05
+    class PINCODES,STATIONS,HOTSPOTS data
+    class CENTROID,HSADJ,CATEGORIZE gen
+    class DEMAND,CAP,ACCESS,COMPETE,COMPOSITE score
+    class GREEDY,BUDGET,PAY,SPATIAL,FEEDER opt
+    class PROPOSALS,MAP,WORKFLOW out
