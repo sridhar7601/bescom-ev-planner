@@ -6,6 +6,13 @@ BESCOM planners enter a budget, minimum-payback target, and desired proposal cou
 
 > **PanIIT AI for Bharat Hackathon** — Theme 9: AI for EV Charging Optimization & Infrastructure Planning (BESCOM)
 
+
+## 🎥 Demo Video
+
+[![ChargeSense AI — 5-min walkthrough](demo/video/poster.jpg)](demo/video/demo.mp4)
+
+> Voiceover by ElevenLabs (Brian, male). Pipeline reproducible — see `demo/video/`.
+
 ## Quick Start
 
 ```bash
