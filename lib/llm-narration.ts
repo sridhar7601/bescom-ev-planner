@@ -131,7 +131,46 @@ export async function explainScheduling(input: SchedulingExplainInput): Promise<
   }
 }
 
-// ─── 3. Proposal AI rationale ────────────────────────────────────────────────
+// ─── 3. Corridor analysis narration ──────────────────────────────────────────
+export interface CorridorNarrateInput {
+  id: string;
+  name: string;
+  pincodeCount: number;
+  totalPopulation: number;
+  avgAdoptionIndex: number;
+  totalPeakEvMW: number;
+  totalChargers: number;
+  chargersPerLakhPop: number;
+  pincodesAtRisk: number;
+  growthSignalScore: number;
+  recommendation: string;
+}
+
+export async function explainCorridor(input: CorridorNarrateInput): Promise<string> {
+  const cacheKey = createHash("sha256").update(JSON.stringify(input)).digest("hex").slice(0, 16);
+  const cached = readCache(`corr_${cacheKey}`);
+  if (cached) return cached;
+
+  if (!hasLLM()) {
+    return `${input.name}: ${input.totalPeakEvMW.toFixed(1)} MW peak EV demand across ${input.pincodeCount} pincodes, only ${input.totalChargers} chargers (${input.chargersPerLakhPop.toFixed(1)}/lakh pop). ${input.pincodesAtRisk} at-risk. Recommendation: ${input.recommendation}.`;
+  }
+
+  const system =
+    "You are a BESCOM EV infrastructure planner writing a 2-sentence flag for an executive memo:\n" +
+    "1. Why this corridor is flagged — call out the strongest signal (demand growth, charger gap, feeder stress).\n" +
+    "2. What infrastructure action to prioritise — number of new chargers, type (DC fast vs AC), and timeline urgency.\n" +
+    "Be concrete with numbers. Use Indian power-sector terms. Under 50 words.";
+
+  try {
+    const text = await rawLLM(system, JSON.stringify(input), 140);
+    writeCache(`corr_${cacheKey}`, text);
+    return text;
+  } catch {
+    return `${input.name}: ${input.pincodesAtRisk}/${input.pincodeCount} pincodes at risk, ${input.chargersPerLakhPop.toFixed(1)} chargers/lakh population. ${input.recommendation} priority — accelerate DC fast charger rollout on ${input.name.split('—')[0]?.trim() || 'this corridor'}.`;
+  }
+}
+
+// ─── 4. Proposal AI rationale ────────────────────────────────────────────────
 export interface ProposalExplainInput {
   proposalId: string;
   area: string;

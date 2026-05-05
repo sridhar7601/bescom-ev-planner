@@ -3,11 +3,15 @@ import { AreaChart, BarChart } from "@tremor/react";
 import { prisma } from "@/lib/db";
 import { forecastHourlyDemand, aggregateHourly } from "@/lib/demand-forecast";
 import { optimizeSchedule } from "@/lib/scheduler";
-import { explainScheduling } from "@/lib/llm-narration";
-import { AlertTriangle, Clock, IndianRupee, Activity, Sparkles } from "lucide-react";
+import { explainScheduling, explainCorridor } from "@/lib/llm-narration";
+import { summarizeCorridors } from "@/lib/corridors";
+import { AlertTriangle, Clock, IndianRupee, Activity, Sparkles, Route } from "lucide-react";
 
 export default async function SchedulingPage() {
-  const pincodes = await prisma.pincode.findMany({ orderBy: { evAdoptionIndex: "desc" } });
+  const pincodes = await prisma.pincode.findMany({
+    orderBy: { evAdoptionIndex: "desc" },
+    include: { _count: { select: { existingChargers: true } } },
+  });
 
   // Build per-pincode forecasts + schedule recommendations
   const perPincode = pincodes.map((p) => {
@@ -40,6 +44,27 @@ export default async function SchedulingPage() {
   const topStress = [...perPincode]
     .sort((a, b) => b.schedule.unmanagedPeakUtilizationPct - a.schedule.unmanagedPeakUtilizationPct)
     .slice(0, 5);
+
+  // Corridor analysis
+  const corridorRows = perPincode.map((p) => {
+    const evPeak = p.forecast.reduce((max, h) => (h.demandMW > max ? h.demandMW : max), 0);
+    const peakHr = p.forecast.reduce((max, h) => (h.utilizationPct > max ? h.utilizationPct : max), 0);
+    return {
+      id: p.id,
+      pincode: p.pincode,
+      area: p.area,
+      population: p.population,
+      evAdoptionIndex: p.evAdoptionIndex,
+      peakDemandMW: p.peakDemandMW,
+      availableCapacityMW: p.availableCapacityMW,
+      existingChargerCount: p._count?.existingChargers ?? 0,
+      hourlyEvPeakMW: evPeak,
+      feederUtilizationPct: peakHr,
+    };
+  });
+  const corridors = summarizeCorridors(corridorRows);
+  const topCorridors = corridors.slice(0, 4);
+  const corridorExplanations = await Promise.all(topCorridors.map((c) => explainCorridor(c)));
 
   const explanations = await Promise.all(
     topStress.map((p) =>
@@ -163,6 +188,91 @@ export default async function SchedulingPage() {
           colors={["red", "lime"]}
           yAxisWidth={48}
         />
+      </div>
+
+      {/* Corridor analysis */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Route size={16} className="text-lime-600" />
+          <h2 className="font-semibold text-slate-900">Corridor analysis — where to build new chargers next</h2>
+          <span className="ml-2 text-[10px] uppercase tracking-wider rounded-full bg-indigo-50 text-indigo-700 px-2 py-0.5 font-semibold">
+            AI · Azure GPT-4.1
+          </span>
+        </div>
+        <p className="text-xs text-slate-500 mb-4">
+          Pincodes grouped by Bengaluru arterials. Growth signal = adoption × demand × charger gap × feeder stress.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {topCorridors.map((c, i) => (
+            <div
+              key={c.id}
+              className={
+                c.recommendation === "URGENT"
+                  ? "rounded-lg border border-red-200 bg-red-50/50 p-4"
+                  : c.recommendation === "HIGH"
+                  ? "rounded-lg border border-orange-200 bg-orange-50/50 p-4"
+                  : c.recommendation === "MODERATE"
+                  ? "rounded-lg border border-amber-200 bg-amber-50/50 p-4"
+                  : "rounded-lg border border-slate-200 bg-slate-50/50 p-4"
+              }
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div>
+                  <h3 className="font-semibold text-slate-900 text-sm">{c.name}</h3>
+                  <p className="text-xs text-slate-500">{c.description}</p>
+                </div>
+                <span
+                  className={
+                    c.recommendation === "URGENT"
+                      ? "text-[10px] font-bold uppercase tracking-wider rounded-full bg-red-600 text-white px-2 py-0.5"
+                      : c.recommendation === "HIGH"
+                      ? "text-[10px] font-bold uppercase tracking-wider rounded-full bg-orange-500 text-white px-2 py-0.5"
+                      : c.recommendation === "MODERATE"
+                      ? "text-[10px] font-bold uppercase tracking-wider rounded-full bg-amber-500 text-white px-2 py-0.5"
+                      : "text-[10px] font-bold uppercase tracking-wider rounded-full bg-slate-400 text-white px-2 py-0.5"
+                  }
+                >
+                  {c.recommendation}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-center my-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500">Pincodes</div>
+                  <div className="text-sm font-bold text-slate-900">{c.pincodeCount}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500">Peak EV</div>
+                  <div className="text-sm font-bold text-slate-900">{c.totalPeakEvMW.toFixed(1)} MW</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500">Chargers</div>
+                  <div className="text-sm font-bold text-slate-900">{c.totalChargers}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500">Per lakh</div>
+                  <div className="text-sm font-bold text-slate-900">{c.chargersPerLakhPop.toFixed(1)}</div>
+                </div>
+              </div>
+              <div className="rounded-md bg-white border border-slate-100 px-3 py-2">
+                <p className="text-xs text-slate-700">{corridorExplanations[i]}</p>
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs">
+                <span className="text-slate-500">Growth signal:</span>
+                <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className={
+                      c.recommendation === "URGENT" ? "h-full bg-red-500"
+                      : c.recommendation === "HIGH" ? "h-full bg-orange-500"
+                      : "h-full bg-amber-400"
+                    }
+                    style={{ width: `${c.growthSignalScore * 100}%` }}
+                  />
+                </div>
+                <span className="font-bold text-slate-700">{(c.growthSignalScore * 100).toFixed(0)}/100</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Top stressed pincodes with AI explanations */}
