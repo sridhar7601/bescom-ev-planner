@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import { formatInr, statusColor, categoryLabel } from '@/lib/utils'
-import { explainProposal } from '@/lib/ai'
+import { explainProposalAI } from '@/lib/llm-narration'
 import { fiveYearCumulativeRevenue } from '@/lib/roi'
 import { CHARGER_COSTS_INR } from '@/lib/types'
 import type { ChargerType } from '@/lib/types'
@@ -22,17 +22,18 @@ export default async function ProposalDetail({ params }: { params: Promise<{ id:
   const cumRevenue = fiveYearCumulativeRevenue(p.estimatedRevenueInrPerMonth)
   const breakEvenMonth = cumRevenue.findIndex(v => v >= capex) + 1
 
-  const aiRationale = await explainProposal({
-    siteScore: {
-      demand: p.demandScore,
-      capacity: p.capacityScore,
-      accessibility: p.accessibilityScore,
-      competition: p.competitionScore,
-      composite: p.siteScore,
-    },
+  const aiRationale = await explainProposalAI({
+    proposalId: p.id,
+    area: p.pincode.area,
+    category: p.category,
+    composite: p.siteScore,
+    demand: p.demandScore,
+    capacity: p.capacityScore,
+    accessibility: p.accessibilityScore,
+    competition: p.competitionScore,
     paybackMonths: p.paybackMonths,
     feederImpactPct: p.feederImpactPct,
-    locationCategory: p.category,
+    monthlyRevenueInr: p.estimatedRevenueInrPerMonth,
   })
 
   const components: Array<{ label: string; value: number; color: string }> = [
@@ -55,7 +56,13 @@ export default async function ProposalDetail({ params }: { params: Promise<{ id:
             <p className="text-slate-500 mt-1">
               {p.pincode.pincode} · {p.pincode.district} · {categoryLabel(p.category)}
             </p>
-            <p className="text-sm text-slate-600 mt-3 max-w-2xl">{aiRationale}</p>
+            <div className="mt-3 max-w-2xl rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] uppercase tracking-wider rounded-full bg-indigo-600 text-white px-2 py-0.5 font-bold">Azure GPT-4.1</span>
+                <span className="text-[10px] uppercase tracking-wider text-indigo-700 font-semibold">AI Rationale</span>
+              </div>
+              <p className="text-sm text-slate-700">{aiRationale}</p>
+            </div>
           </div>
           <div className="flex flex-col items-end gap-2">
             <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColor(p.status)}`}>
