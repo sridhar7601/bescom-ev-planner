@@ -220,6 +220,66 @@ Baseline comparison: vs **uniform placement** (the strawman the brief asks us to
 
 ---
 
+## Model & architecture choices (and why)
+
+| Choice | Reason |
+|--------|--------|
+| **Heuristic forecast (signature × population × adoption)** instead of LSTM/Prophet | Brief allows synthetic data; a deterministic formula is auditable line-by-line, runs in <50 ms, and doesn't need GPU infra. The forecast interface is a drop-in — production swaps `forecastFeatures()` for any trained model output without UI changes. |
+| **Greedy site optimizer** instead of LP solver | Site-selection with submodular constraints (spatial 500 m, feeder ≤ 30 %, budget) is near-optimal under greedy. LP would require commercial solver licenses and add 100× latency for ≤2 % score gain. |
+| **40 % flexibility model** for peak-shift | CEA / IRENA studies estimate 35–45 % of urban EV charging is overnight-shiftable (residential AC). 40 % is the conservative midpoint. |
+| **Azure OpenAI GPT-4.1** for narration only — never for math | LLMs hallucinate numbers. We pre-compute every MW, ₹, and pincode value, then ask GPT-4.1 only to *describe* them. Zero invented values. |
+| **SQLite + Prisma** for demo, PostgreSQL/TimescaleDB for prod | One-line schema change (`provider = "postgresql"`); existing Prisma queries unchanged. TimescaleDB hypertable on hourly demand handles fleet-scale at production tariff resolution. |
+| **No hosted-LLM on real data** in production | Brief non-negotiable. The `lib/llm-narration.ts` interface is model-agnostic — swap Azure for on-prem Llama-3 / Mistral by changing the URL + auth header. No app-code changes. |
+
+---
+
+## Risks & mitigation
+
+| Risk | Impact | Mitigation |
+|------|--------|-----------|
+| **Data gap — no real BESCOM smart-meter feed** | Demand forecast accuracy | Signature curves are calibrated from published CEA/BESCOM load-profile studies; production swaps signatures for telemetry without changing scheduler/optimizer logic. |
+| **Behavior adoption — drivers may not actually shift** | Peak-shift savings unrealised | Decision-support only — we recommend ToU tariff signals + driver outreach to charger operators; we don't *control* anything. The scheduler shows the *theoretical max savings*; real adoption typically reaches 60–70 % of theoretical. |
+| **EV adoption growth uncertainty** | Long-term plan obsolescence | Adoption index is a **input** to the model — re-run with updated index every quarter. Plan generator stores rationale at proposal-time so audit trail survives data refresh. |
+| **Feeder data accuracy** | Wrong sites flagged | Hard 30 % feeder constraint is conservative; coordinate with DT team before deployment. Every proposal carries the feeder code for verification. |
+| **LLM hallucination** | Operators trust wrong numbers | All AI narration is **grounded** — GPT-4.1 only describes pre-computed values. Disk-cached responses; deterministic fallback if API down. |
+| **Sensitive data leakage** | Compliance / brief non-negotiable | Synthetic-only in repo (Faker seed 42). Production swaps to on-prem inference; hosted-LLM URL never sees BESCOM customer data. |
+| **Greedy optimizer rejecting all candidates** | Empty plan output | Optimizer logs rejection reasons (budget exhausted, spacing violation, feeder over-limit) — surface in plan generator UI for transparency. |
+
+---
+
+## Implementation roadmap (90-day BESCOM pilot)
+
+**Phase 1 — Data integration (weeks 1–4)**
+- Replace Faker seed with BESCOM DMS pincode + feeder export
+- Pull existing charger registry from Ministry of Power (OCPI / public API)
+- Calibrate signature curves with 30 days of smart-meter telemetry from 5 pilot pincodes
+- Output: same UI, real numbers behind it
+
+**Phase 2 — Pilot rollout (weeks 5–8)**
+- Run plan generator on 50 km² pilot zone (Whitefield + ORR East corridor)
+- BESCOM EV cell shortlists → approves 5–10 sites via in-app workflow
+- Operators install + commission; ChargeSense tracks deployment status
+
+**Phase 3 — Scheduling + ToU validation (weeks 9–12)**
+- Push peak-shift recommendations to charger operators (BESCOM, Tata Power, ChargeZone)
+- Activate ToU tariff differential at pilot chargers
+- Measure realised peak reduction MW vs theoretical scheduler output
+- Output: validated savings metric, fleet-wide rollout plan
+
+**Phase 4 — Production hardening (post-pilot)**
+- SQLite → PostgreSQL/TimescaleDB
+- Azure OpenAI → on-prem Llama-3 (per non-negotiable)
+- Add CI/CD, monitoring (Grafana on KPIs), role-based auth (BESCOM SSO)
+- KERC compliance audit trail export
+
+**Costs (rough)**
+- Single VM ₹6k/month (dev/pilot)
+- Azure OpenAI ₹1k/month (cached, low call volume)
+- Open-Meteo / OCPI: free
+- Production fleet (1000 plants, 200 concurrent users): ₹50k/month managed PostgreSQL + Redis + 3 VMs
+
+---
+
 ## Submission
 
 - **Hackathon:** PanIIT AI for Bharat
