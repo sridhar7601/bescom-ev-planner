@@ -1,287 +1,114 @@
 # ChargeSense AI — EV Charging Optimization & Infrastructure Planning for BESCOM
 
-> **PanIIT AI for Bharat Hackathon — Theme 9**
-> AI decision-support for Bengaluru's EV charging future: demand prediction + peak-shift scheduling + score-based location planning, with **Azure GPT-4.1** narration grounded on real numbers.
+> **PanIIT AI for Bharat 2026 — Theme 9** · **Sponsor:** BESCOM
+> Predict · Shift · Site
+
+[![ChargeSense AI — 5-min walkthrough](demo/video/poster.jpg)](https://youtu.be/n3n8ft261Co)
+
+▶ **[Watch the 5-minute demo](https://youtu.be/n3n8ft261Co)**
 
 ---
 
 ## What it solves
 
-The brief has **two parts**, both addressed by ChargeSense AI:
+Bengaluru is racing toward 15% EV penetration by 2030, but BESCOM doesn't yet have the planning tool to keep up. **The brief has two parts**, both addressed: Part A — predict hourly EV demand by zone and recommend peak-shift to overnight off-peak using the BESCOM ToU tariff. Part B — score-based charger location planning under hard constraints (budget, 500 m spacing, ≤30% feeder load).
 
-### Part A — EV Charging Demand & Scheduling
-- **Predict** hourly EV charging demand by zone (24h ahead, area-type signature × population × adoption)
-- **Recommend** optimal charging times — peak-shift to overnight off-peak (23:00–05:00) using BESCOM ToU tariff
-- **Quantify** grid stress: feeder utilisation %, pincodes at risk (>80%), MW shiftable, ₹ daily savings
+## Key features
 
-### Part B — Infrastructure Location Planning
-- **Identify** high-demand zones (hotspots + adoption choropleth)
-- **Recommend** new charger locations — composite scoring (demand × capacity × accessibility × competition) with hard constraints (budget, 500 m spacing, ≤30 % feeder load)
-- **Corridor analysis** — group pincodes into Bengaluru arterials (ORR East, Whitefield, Hosur Rd, Bellary Rd, Tumkur Rd, CBD, Jayanagar–BSK) and rank by growth signal
+- **Part A — 24h hourly EV demand forecast** — Per pincode (area-type signature × population × adoption)
+- **Peak-shift recommendation** — MW shiftable to overnight off-peak (23:00–05:00) using BESCOM ToU tariff; ₹ daily savings quantified
+- **Grid stress analytics** — Feeder utilisation %, pincodes at risk (>80%)
+- **Part B — score-based site planner** — 4-component composite (demand × capacity × accessibility × competition) with 35/25/20/20 weights
+- **Hard constraints** — Budget · 500 m spacing · ≤30% cumulative feeder load
+- **Corridor analysis** — 7 Bengaluru arterials (ORR East, Whitefield, Hosur, Bellary, Tumkur, CBD, Jayanagar–BSK) with growth-signal ranking
+- **Baseline comparison** — ChargeSense vs uniform-placement strawman (composite +2%, payback 3% sooner)
+- **AI Morning Briefing** — Azure GPT-4.1 narrates fleet outlook + peak-shift opportunity + recommended action
+- **AI rationale per proposal** — Replaces template strings; cites the actual scoring numbers
 
-**Brief non-negotiables met:** synthetic data only, no hosted-LLM on real customer telemetry, deterministic explainable scoring, decision-support-only (no system writes).
+## Architecture
 
----
+![Architecture](docs/diagrams/architecture.png)
 
-## Prerequisites
+> Source: [`docs/diagrams/architecture.mmd`](docs/diagrams/architecture.mmd) (Mermaid)
+
+## Quick start
+
+### Prerequisites
 
 | Tool | Version |
 |------|---------|
 | Node.js | 18+ |
 | npm | 9+ |
 
-No Python. No Docker. No external database. SQLite is bundled.
+> No Python. No Docker. SQLite is bundled.
 
----
-
-## Setup
-
-### 1. Install
+### Setup
 
 ```bash
+# 1. Install
 npm install
-```
 
-### 2. Configure environment
+# 2. Configure environment (optional — without keys, AI falls back to deterministic templates)
+cat > .env.local <<'EOF'
+AZURE_OPENAI_API_KEY=your_key
+AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/openai/deployments/<deployment>/chat/completions?api-version=2025-01-01-preview
+EOF
 
-Create `.env.local`:
-
-```env
-# Required for AI features (briefing, scheduling explanations, corridor narration, proposal rationale)
-AZURE_OPENAI_API_KEY=your_azure_openai_key
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/openai/deployments/your-deployment/chat/completions?api-version=2025-01-01-preview
-
-# Optional fallback if Azure not available
-# OPENAI_API_KEY=sk-...
-```
-
-> **Without API keys:** the app runs fully — every AI block falls back to deterministic templates. All forecasting, optimization, charts, and exports work offline.
-
-### 3. Set up the database
-
-```bash
+# 3. Set up the database
 npx prisma generate
 npx prisma migrate dev --name init
-```
 
-### 4. Seed demo data
-
-```bash
+# 4. Seed demo data
 npm run seed
-```
 
-Seeds:
-- **29 Bengaluru pincodes** with population, EV adoption index, peak demand MW, feeder headroom
-- **40 existing charging stations** across 7 operators (BESCOM, Tata Power, ChargeZone, Statiq, Ather, BPCL, Jio-bp)
-- **60 demand hotspots** concentrated in tech/commercial zones
-- **15 charger proposals** ranked by composite score (₹4 Cr total CAPEX)
-- All seeded with Faker seed 42 → deterministic, reproducible runs
-
-### 5. Run
-
-```bash
+# 5. Run the dev server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open <http://localhost:3000>.
 
----
-
-## Full setup (one-liner)
+### One-liner
 
 ```bash
 npm install && npx prisma generate && npx prisma migrate dev --name init && npm run seed && npm run dev
 ```
 
----
 
-## Key features
+## Demo flow
 
-| Feature | Where |
-|---------|-------|
-| **AI Morning Briefing** (Azure GPT-4.1) | Dashboard — top card |
-| **24h hourly demand forecast** + peak-shift optimizer | `/scheduling` |
-| **AI scheduling recommendations** for top-5 stressed pincodes | `/scheduling` |
-| **Corridor analysis** — ORR East, Whitefield, Hosur Rd, Bellary Rd, etc. | `/scheduling` |
-| **AI corridor narration** with charger gap + urgency | `/scheduling` |
-| Score-based site optimizer (4 components, hard constraints) | `/plan/new` |
-| Baseline comparison (ChargeSense vs uniform placement) | `/proposals` |
-| **AI proposal rationale** (replaces template strings) | `/proposals/[id]` |
-| 5-year ROI breakdown + feeder code binding | `/proposals/[id]` |
-| Approval workflow (5 states: PROPOSED → SHORTLISTED → APPROVED → DEPLOYED → REJECTED) | `/proposals/[id]` |
-| Interactive Leaflet map with 4 toggleable layers | `/map` |
-| CSV export of proposals | `/proposals` |
-| Pincode-level detail (existing + proposed) | `/pincodes/[id]` |
+1. Land on `/` for the **AI Morning Briefing** + KPI strip + plant map
+2. `/scheduling` — 24h hourly EV demand forecast + peak-shift recommendation + AI scheduling advisory
+3. `/map` — Bengaluru charging map (4 layers: adoption choropleth, demand hotspots, existing chargers, proposed sites)
+4. `/proposals` — score-ranked site list + baseline comparison band
+5. Click any proposal → AI rationale + 5-year ROI breakdown
+6. `/plan/new` — re-run the optimizer with custom budget + payback constraints
 
----
-
-## Available scripts
-
-```bash
-npm run dev     # Start dev server (Next.js)
-npm run build   # Production build
-npm run start   # Start production server
-npm run seed    # Seed Faker-deterministic demo data (29 pincodes, 40 stations, 60 hotspots, 15 proposals)
-npm run lint    # ESLint
-```
-
----
+> **Demo data:** 29 Bengaluru pincodes · 40 existing charging stations across 7 operators · 60 demand hotspots · 15 charger proposals (₹3.56 Cr CAPEX) · Faker seed=42
 
 ## Tech stack
 
 | Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 15 (App Router, TypeScript 5) |
-| Database | Prisma 5 + SQLite (PostgreSQL-portable) |
-| Charts | @tremor/react |
-| Map | Leaflet + react-leaflet (OSM) + Turf.js (haversine, buffer) |
-| AI / LLM | Azure OpenAI GPT-4.1 (enterprise) — fully optional |
-| Styling | Tailwind CSS v3 + lucide-react icons |
-| Data | Faker 10 (seed 42) — deterministic |
+|-------|------------|
+| Framework | Next.js 16 (App Router, TypeScript) |
+| Database | Prisma + SQLite |
+| Charts | Tremor v3 |
+| Map | Leaflet + react-leaflet |
+| AI / LLM | Azure OpenAI GPT-4.1 with deterministic fallback |
+| Styling | Tailwind CSS |
 
----
+## Brief non-negotiables met
 
-## Architecture
-
-```
-app/                        Next.js pages + API routes
-├── page.tsx                Dashboard — AI briefing, KPIs, grid stress snapshot
-├── scheduling/             Part A: hourly demand forecast + peak-shift + corridor analysis
-├── map/                    Leaflet map with pincodes, hotspots, chargers, proposals
-├── plan/new/               Score-based plan generator (sliders → optimizer)
-├── proposals/              Ranked proposals list + baseline comparison + CSV export
-│   └── [id]/               Single-proposal detail with AI rationale + ROI + approval workflow
-├── pincodes/[id]/          Pincode detail — existing chargers + proposed sites
-└── api/                    REST endpoints (plants, clusters, stations, proposals, plan/generate)
-
-lib/
-├── demand-forecast.ts      24h hourly EV demand prediction (area-type signature × pop × adoption)
-├── scheduler.ts            Peak-shift optimizer (40 % flex, 23:00–05:00 off-peak, ToU tariff)
-├── corridors.ts            Bengaluru arterial mapping + corridor growth-signal scoring
-├── optimizer.ts            Greedy site selection (4-component composite, hard constraints)
-├── scoring.ts              Demand × capacity × accessibility × competition
-├── roi.ts                  CAPEX / monthly revenue / payback / 5-yr cumulative
-├── baselines.ts            Uniform-placement baseline for Part B comparison
-├── llm-narration.ts        Azure GPT-4.1 grounded narration (4 use cases, disk-cached)
-├── geo.ts                  Turf.js haversine helpers
-└── ai.ts                   Legacy template rationale (kept as deterministic fallback)
-```
-
----
-
-## How AI is used (Azure GPT-4.1)
-
-All AI outputs are **grounded** — GPT-4.1 only describes pre-computed numbers. No hallucinated MW, ₹, or pincode values. Every response cached to `data/llm-cache/` after first call → demo never breaks if network is down.
-
-| Use case | Where |
-|----------|-------|
-| **Daily briefing** | Dashboard — fleet outlook + grid stress + recommended action |
-| **Scheduling explanation** | `/scheduling` — peak-shift rationale per pincode |
-| **Corridor flag** | `/scheduling` — urgency + charger count + timeline per arterial |
-| **Proposal rationale** | `/proposals/[id]` — site justification + financial case |
-
-Production deployment note: per the brief's non-negotiables, hosted-LLM use on real BESCOM customer data is not permitted. This implementation uses synthetic demo data only; production swaps Azure OpenAI for an on-prem inference layer (Llama-3 / Mistral) without changing the application code.
-
----
-
-## Methodology — Part A (Demand & Scheduling)
-
-**Hourly demand forecast:**
-```
-peakEvMW = (population × 4% × adoptionIndex) × 6 kWh/EV/day × 30% peak-hour fraction / 1000
-demandMW[h] = peakEvMW × signature[archetype][h]
-```
-
-Archetype signatures (residential / IT-park / commercial / transport-hub / mixed) come from published BESCOM/CEA load-profile studies. Production swaps signatures for smart-meter telemetry; the forecast logic stays identical.
-
-**Peak-shift scheduler:**
-```
-flexible = 40% of evening EV charging (residential AC, overnight-shiftable)
-shifted to 23:00–05:00 off-peak window (lowest baseLoad period)
-₹ savings = flexMWh × 1000 × (₹8.50/kWh peak − ₹4.50/kWh off-peak)
-```
-
----
-
-## Methodology — Part B (Location Planning)
-
-Composite score (0–1):
-```
-composite = 0.35 × demand + 0.25 × capacity + 0.20 × accessibility + 0.20 × competition
-```
-
-Greedy selection with **hard constraints**:
-1. ≥ 500 m from any already-selected site (Turf.js haversine)
-2. Cumulative feeder load ≤ 30 % per feeder code
-3. Total CAPEX ≤ budget
-4. Per-site payback ≤ user-set max
-
-Baseline comparison: vs **uniform placement** (the strawman the brief asks us to beat).
-
----
-
-## Model & architecture choices (and why)
-
-| Choice | Reason |
-|--------|--------|
-| **Heuristic forecast (signature × population × adoption)** instead of LSTM/Prophet | Brief allows synthetic data; a deterministic formula is auditable line-by-line, runs in <50 ms, and doesn't need GPU infra. The forecast interface is a drop-in — production swaps `forecastFeatures()` for any trained model output without UI changes. |
-| **Greedy site optimizer** instead of LP solver | Site-selection with submodular constraints (spatial 500 m, feeder ≤ 30 %, budget) is near-optimal under greedy. LP would require commercial solver licenses and add 100× latency for ≤2 % score gain. |
-| **40 % flexibility model** for peak-shift | CEA / IRENA studies estimate 35–45 % of urban EV charging is overnight-shiftable (residential AC). 40 % is the conservative midpoint. |
-| **Azure OpenAI GPT-4.1** for narration only — never for math | LLMs hallucinate numbers. We pre-compute every MW, ₹, and pincode value, then ask GPT-4.1 only to *describe* them. Zero invented values. |
-| **SQLite + Prisma** for demo, PostgreSQL/TimescaleDB for prod | One-line schema change (`provider = "postgresql"`); existing Prisma queries unchanged. TimescaleDB hypertable on hourly demand handles fleet-scale at production tariff resolution. |
-| **No hosted-LLM on real data** in production | Brief non-negotiable. The `lib/llm-narration.ts` interface is model-agnostic — swap Azure for on-prem Llama-3 / Mistral by changing the URL + auth header. No app-code changes. |
-
----
-
-## Risks & mitigation
-
-| Risk | Impact | Mitigation |
-|------|--------|-----------|
-| **Data gap — no real BESCOM smart-meter feed** | Demand forecast accuracy | Signature curves are calibrated from published CEA/BESCOM load-profile studies; production swaps signatures for telemetry without changing scheduler/optimizer logic. |
-| **Behavior adoption — drivers may not actually shift** | Peak-shift savings unrealised | Decision-support only — we recommend ToU tariff signals + driver outreach to charger operators; we don't *control* anything. The scheduler shows the *theoretical max savings*; real adoption typically reaches 60–70 % of theoretical. |
-| **EV adoption growth uncertainty** | Long-term plan obsolescence | Adoption index is a **input** to the model — re-run with updated index every quarter. Plan generator stores rationale at proposal-time so audit trail survives data refresh. |
-| **Feeder data accuracy** | Wrong sites flagged | Hard 30 % feeder constraint is conservative; coordinate with DT team before deployment. Every proposal carries the feeder code for verification. |
-| **LLM hallucination** | Operators trust wrong numbers | All AI narration is **grounded** — GPT-4.1 only describes pre-computed values. Disk-cached responses; deterministic fallback if API down. |
-| **Sensitive data leakage** | Compliance / brief non-negotiable | Synthetic-only in repo (Faker seed 42). Production swaps to on-prem inference; hosted-LLM URL never sees BESCOM customer data. |
-| **Greedy optimizer rejecting all candidates** | Empty plan output | Optimizer logs rejection reasons (budget exhausted, spacing violation, feeder over-limit) — surface in plan generator UI for transparency. |
-
----
-
-## Implementation roadmap (90-day BESCOM pilot)
-
-**Phase 1 — Data integration (weeks 1–4)**
-- Replace Faker seed with BESCOM DMS pincode + feeder export
-- Pull existing charger registry from Ministry of Power (OCPI / public API)
-- Calibrate signature curves with 30 days of smart-meter telemetry from 5 pilot pincodes
-- Output: same UI, real numbers behind it
-
-**Phase 2 — Pilot rollout (weeks 5–8)**
-- Run plan generator on 50 km² pilot zone (Whitefield + ORR East corridor)
-- BESCOM EV cell shortlists → approves 5–10 sites via in-app workflow
-- Operators install + commission; ChargeSense tracks deployment status
-
-**Phase 3 — Scheduling + ToU validation (weeks 9–12)**
-- Push peak-shift recommendations to charger operators (BESCOM, Tata Power, ChargeZone)
-- Activate ToU tariff differential at pilot chargers
-- Measure realised peak reduction MW vs theoretical scheduler output
-- Output: validated savings metric, fleet-wide rollout plan
-
-**Phase 4 — Production hardening (post-pilot)**
-- SQLite → PostgreSQL/TimescaleDB
-- Azure OpenAI → on-prem Llama-3 (per non-negotiable)
-- Add CI/CD, monitoring (Grafana on KPIs), role-based auth (BESCOM SSO)
-- KERC compliance audit trail export
-
-**Costs (rough)**
-- Single VM ₹6k/month (dev/pilot)
-- Azure OpenAI ₹1k/month (cached, low call volume)
-- Open-Meteo / OCPI: free
-- Production fleet (1000 plants, 200 concurrent users): ₹50k/month managed PostgreSQL + Redis + 3 VMs
+- ✅ Synthetic data only
+- ✅ No hosted-LLM on real customer telemetry
+- ✅ Deterministic explainable scoring
+- ✅ Decision-support only (no system writes)
 
 ---
 
 ## Submission
 
-- **Hackathon:** PanIIT AI for Bharat
-- **Theme:** 9 — AI for EV Charging Optimization & Infrastructure Planning (BESCOM)
-- **Team:** Sridhar, Sruthi
+- **Hackathon:** PanIIT AI for Bharat 2026
+- **Theme:** 9 — EV Charging Optimization & Infrastructure Planning for BESCOM
+- **Video:** https://youtu.be/n3n8ft261Co
+- **Repo:** https://github.com/sridhar7601/bescom-ev-planner
+- **Team:** Sridhar Suresh, Sruthi Krishnakumar
